@@ -1,12 +1,12 @@
 {
-  "name": "custom-save-and-stay",
+  "name": "custom-save-as-copy",
   "author": {
     "name": "Davide Ciacco",
     "email": "ciaccodavide@gmail.com",
     "url": "https://ciaccodavi.de"
   },
-  "description": "This interface adds a custom save and stay button avoiding the need to menu dive.",
-  "icon": "save",
+  "description": "This interface adds a custom save as copy button avoiding the need to menu dive.",
+  "icon": "content_copy",
   "version": "1.0.7",
   "license": "MIT",
   "repository": {
@@ -17,7 +17,7 @@
     "directus",
     "directus-extension",
     "directus-extension-interface",
-    "save and stay",
+    "save as copy",
     "button"
   ],
   "type": "module",
