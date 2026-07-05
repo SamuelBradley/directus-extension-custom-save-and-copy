@@ -11,7 +11,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/CiaccoDavide/directus-extension-custom-save-and-stay"
+    "url": "https://github.com/SamuelBradley/directus-extension-custom-save-and-copy"
   },
   "keywords": [
     "directus",

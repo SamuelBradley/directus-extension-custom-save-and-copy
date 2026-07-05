@@ -2,11 +2,11 @@
 import { defineComponent } from "vue";
 import { onMounted, onUnmounted } from "vue";
 
-const OBSERVABLE_SAVE_BUTTON_CONTAINER_SELECTOR =
-  "#app header .actions .action-buttons";
-const SAVE_BUTTON_SELECTOR = `${OBSERVABLE_SAVE_BUTTON_CONTAINER_SELECTOR} button:has([data-icon="check"])`;
-const MENU_ACTIVATOR_SELECTOR = `div.v-menu > div.v-menu-activator > span.v-icon.has-click`;
+const SAVE_BUTTON_CONTAINER_SELECTOR = "#app header .actions";
+const SAVE_BUTTON_SELECTOR = `${SAVE_BUTTON_CONTAINER_SELECTOR} button:has([data-icon="check"])`;
+const SAVE_BUTTON_FALLBACK_SELECTOR = "#app header button:has([data-icon='check'])";
 const MENU_OUTLET_SELECTOR = "#menu-outlet";
+const MENU_ITEM_SELECTOR = `${MENU_OUTLET_SELECTOR} ul.v-list > .v-list-item.link.clickable`;
 const SAVE_AS_COPY_BUTTON_ID = "custom_save_as_copy_button";
 
 const COPY_ICON_SELECTORS = [
@@ -21,9 +21,7 @@ function findSaveAsCopyMenuItem(): HTMLElement | null {
   const menuOutlet = document.querySelector(MENU_OUTLET_SELECTOR);
   if (!menuOutlet) return null;
 
-  const textMatch = Array.from(
-    menuOutlet.querySelectorAll("ul.v-list > li.v-list-item.link.clickable")
-  ).find((item) =>
+  const textMatch = Array.from(menuOutlet.querySelectorAll(MENU_ITEM_SELECTOR)).find((item) =>
     item.textContent?.trim().toLowerCase().includes("save as copy")
   ) as HTMLElement | undefined;
 
@@ -32,7 +30,7 @@ function findSaveAsCopyMenuItem(): HTMLElement | null {
   for (const selector of COPY_ICON_SELECTORS) {
     const icon = menuOutlet.querySelector(selector);
     if (icon) {
-      const menuItem = icon.closest("li.v-list-item.link.clickable") as
+      const menuItem = icon.closest(".v-list-item.link.clickable") as
         | HTMLElement
         | null;
       if (menuItem) return menuItem;
@@ -42,11 +40,35 @@ function findSaveAsCopyMenuItem(): HTMLElement | null {
   return null;
 }
 
+function openActionMenu(): boolean {
+  const candidates = [
+    `${SAVE_BUTTON_CONTAINER_SELECTOR} .v-menu-activator .v-icon.has-click`,
+    `${SAVE_BUTTON_CONTAINER_SELECTOR} .v-menu-activator [data-icon='more_vert']`,
+    `${SAVE_BUTTON_CONTAINER_SELECTOR} .v-menu-activator [data-icon='dots_vertical']`,
+    `${SAVE_BUTTON_CONTAINER_SELECTOR} .v-menu-activator [aria-label*='more' i]`,
+  ];
+
+  for (const selector of candidates) {
+    const element = document.querySelector(selector) as HTMLElement | null;
+    if (!element) continue;
+
+    const clickable =
+      (element.closest("button, .v-icon.has-click, .v-menu-activator") as HTMLElement | null) ||
+      element;
+    clickable.click();
+    return true;
+  }
+
+  return false;
+}
+
 export default defineComponent({
   setup() {
     let newSaveAsCopyButton: HTMLButtonElement | null = null;
+    let saveButton: HTMLButtonElement | null = null;
     let saveButtonObserver: MutationObserver | null = null;
     let saveAsCopyMenuObserver: MutationObserver | null = null;
+    let saveButtonContainerObserver: MutationObserver | null = null;
     let saveAsCopyRequested = false;
 
     const triggerSaveAsCopy = () => {
@@ -56,10 +78,10 @@ export default defineComponent({
       return true;
     };
 
-    const syncDisabledState = (saveButton: Element | null) => {
+    const syncDisabledState = () => {
       if (!newSaveAsCopyButton || !saveButton) return;
 
-      const disabled = (saveButton as HTMLButtonElement).hasAttribute("disabled");
+      const disabled = saveButton.hasAttribute("disabled");
       if (disabled) {
         newSaveAsCopyButton.setAttribute("disabled", "disabled");
       } else {
@@ -68,30 +90,61 @@ export default defineComponent({
       newSaveAsCopyButton.style.marginLeft = disabled ? "10px" : "0px";
     };
 
-    onMounted(() => {
-      // if the dialog is open, do not add the button
-      if (document.querySelector("#dialog-outlet *")) {
-        return;
-      }
+    const attachSaveButtonObserver = () => {
+      if (!saveButton) return;
 
-      // check if the custom button already exists
+      if (saveButtonObserver) saveButtonObserver.disconnect();
+      saveButtonObserver = new MutationObserver(() => {
+        syncDisabledState();
+      });
+
+      saveButtonObserver.observe(saveButton, {
+        attributes: true,
+        attributeFilter: ["disabled"],
+      });
+    };
+
+    const injectSaveAsCopyButton = () => {
+      saveButton = (document.querySelector(SAVE_BUTTON_SELECTOR) ||
+        document.querySelector(SAVE_BUTTON_FALLBACK_SELECTOR)) as HTMLButtonElement | null;
+      if (!saveButton) return;
+
       newSaveAsCopyButton = document.querySelector(
         `#${SAVE_AS_COPY_BUTTON_ID}`
       ) as HTMLButtonElement | null;
-      if (newSaveAsCopyButton) {
-        return;
-      }
 
-      const saveButton = document.querySelector(SAVE_BUTTON_SELECTOR);
+      if (!newSaveAsCopyButton) {
+        // Clone the native save button so size/shape/styles stay consistent.
+        newSaveAsCopyButton = saveButton.cloneNode(true) as HTMLButtonElement;
+        saveButton.parentNode?.appendChild(newSaveAsCopyButton);
 
-      saveButtonObserver = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (mutation.type === "attributes") {
-            syncDisabledState(saveButton);
+        const icon = newSaveAsCopyButton.querySelector("i");
+        if (icon) icon.setAttribute("data-icon", "content_copy");
+
+        newSaveAsCopyButton.style.marginLeft = "10px";
+        newSaveAsCopyButton.style.cursor = "pointer";
+        newSaveAsCopyButton.id = SAVE_AS_COPY_BUTTON_ID;
+        newSaveAsCopyButton.setAttribute("title", "Save as Copy");
+
+        newSaveAsCopyButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          openActionMenu();
+          saveAsCopyRequested = true;
+
+          // Immediate attempt in case menu content is already mounted.
+          if (triggerSaveAsCopy()) {
+            saveAsCopyRequested = false;
           }
         });
-      });
+      }
 
+      attachSaveButtonObserver();
+      syncDisabledState();
+    };
+
+    onMounted(() => {
       saveAsCopyMenuObserver = new MutationObserver(() => {
         if (!saveAsCopyRequested) return;
 
@@ -100,7 +153,6 @@ export default defineComponent({
         }
       });
 
-      // observe the menu outlet to find the hidden save as copy button
       const menuOutlet = document.querySelector(MENU_OUTLET_SELECTOR);
       if (menuOutlet) {
         saveAsCopyMenuObserver.observe(menuOutlet, {
@@ -109,58 +161,22 @@ export default defineComponent({
         });
       }
 
-      if (!saveButton) {
-        return;
-      }
-
-      // observe the original save button to enable/disable the save as copy button
-      saveButtonObserver.observe(saveButton, {
-        attributeFilter: ["disabled"],
+      // Keep trying while editor header/actions mount or re-mount.
+      saveButtonContainerObserver = new MutationObserver(() => {
+        injectSaveAsCopyButton();
+      });
+      saveButtonContainerObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
       });
 
-      if (!newSaveAsCopyButton) {
-        // deep clone the save button
-        newSaveAsCopyButton = saveButton.cloneNode(true) as HTMLButtonElement;
-
-        // append after the original
-        saveButton.parentNode?.appendChild(newSaveAsCopyButton);
-
-        // customize the icon
-        const icon = newSaveAsCopyButton.querySelector("i");
-        if (icon) {
-          icon.setAttribute("data-icon", "content_copy");
-        }
-
-        newSaveAsCopyButton.style.marginLeft = "10px";
-        newSaveAsCopyButton.style.cursor = "pointer";
-        newSaveAsCopyButton.id = SAVE_AS_COPY_BUTTON_ID;
-        newSaveAsCopyButton.setAttribute("title", "Save as Copy");
-
-        syncDisabledState(saveButton);
-
-        newSaveAsCopyButton.addEventListener("click", () => {
-          // find the menu activator where the hidden save as copy button is located
-          const menuActivator = document.querySelector(MENU_ACTIVATOR_SELECTOR);
-
-          if (menuActivator) {
-            // open the menu
-            menuActivator.click();
-          }
-
-          // set the flag to trigger save as copy function after menu opens
-          saveAsCopyRequested = true;
-
-          // optimistic immediate attempt in case menu item is already in DOM
-          if (triggerSaveAsCopy()) {
-            saveAsCopyRequested = false;
-          }
-        });
-      }
+      injectSaveAsCopyButton();
     });
 
     onUnmounted(() => {
       if (saveButtonObserver) saveButtonObserver.disconnect();
       if (saveAsCopyMenuObserver) saveAsCopyMenuObserver.disconnect();
+      if (saveButtonContainerObserver) saveButtonContainerObserver.disconnect();
     });
 
     return {};
