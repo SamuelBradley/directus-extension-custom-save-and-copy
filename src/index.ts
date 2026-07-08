@@ -2,8 +2,10 @@ import { defineInterface } from '@directus/extensions-sdk';
 import InterfaceComponent from './interface.vue';
 
 export default defineInterface({
-	// Use an underscore-only id so auto-generated field keys start from a
-	// GraphQL-safe base (hyphenated keys break GraphQL field validation).
+	// Directus only supports boolean autoKey for interfaces, and its generated
+	// key format still appends a hyphenated suffix, which breaks GraphQL field
+	// validation for this helper field. Disable auto generation so operators can
+	// provide a safe key such as `custom_save_as_copy` explicitly.
 	id: 'custom_save_as_copy',
 	name: 'Custom Save as Copy',
 	icon: 'content_copy',
@@ -12,5 +14,5 @@ export default defineInterface({
 	hideLabel: true,
 	options: null,
 	types: ['string'],
-	autoKey: true,
+	autoKey: false,
 });

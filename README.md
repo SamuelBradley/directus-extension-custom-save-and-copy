@@ -6,6 +6,10 @@ It's a simple (and still hacky) workaround that doesn't rely on keyboard shortcu
 
 Just add this custom field to your collection and you're good to go.
 
+Use an underscore-safe field key such as `custom_save_as_copy`.
+Do not use Directus's dashed auto-generated key for this helper field, because
+hyphens in the field key break GraphQL validation on item pages.
+
 ![Add the custom hidden field to your collection](https://raw.githubusercontent.com/CiaccoDavide/directus-extension-custom-save-and-stay/refs/heads/main/screenshots/0_add_hidden_field_to_collection.png)
 
 This extension promotes the hidden "Save as Copy" action to a visible button next to save.
